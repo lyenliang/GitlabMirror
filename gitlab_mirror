@@ -1,0 +1,44 @@
+#!/bin/bash
+
+# Set errexit option to exit immediately on any non-zero status return
+set -e
+
+readonly TS=`date +%Y%m%d-%H%M`
+readonly APP_HOME=$(dirname "${0}")
+readonly ROOT_PATH=$(pwd)
+readonly LOG_PATH="${ROOT_PATH}/log/`basename $0`_${TS}.log"
+readonly ALL_REPOS_FILE=${ROOT_PATH}/config/all_repos.list
+
+cd $APP_HOME
+
+source config/config.sh
+source config/git_token.sh
+
+source lib/logger.sh
+source lib/repoTool.sh
+
+function main {
+  # Read all lines of allRepos.conf
+  # References: 
+  # https://stackoverflow.com/questions/15148796/get-string-after-character
+  # https://stackoverflow.com/questions/20348097/bash-extract-string-before-a-colon
+  local repo_name
+  local repo_owner
+  local dest_repo_name
+
+  list_repos
+
+  while IFS='' read -r git_url || [[ -n "${git_url}" ]]; do
+    cd ${ROOT_PATH}/repos
+
+    repo_name="$(echo ${git_url##*/} | cut -d. -f1)"
+    repo_owner="$(echo ${git_url} | cut -d/ -f4)"
+    dest_repo_name="${repo_owner}_${repo_name}"
+
+    log_info "Downloading ${repo_name} ..."
+    create_update_local_branches ${git_url} ${repo_name}
+    push_branches ${repo_name} ${dest_repo_name}
+  done < ${ALL_REPOS_FILE}
+}
+
+main "$@"
